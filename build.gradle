@@ -4,7 +4,7 @@ plugins {
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
-group = 'com.trangnx'
+group = 'com.yourname'
 version = '0.0.1-SNAPSHOT'
 
 java {
@@ -35,6 +35,9 @@ dependencies {
 	// Flyway for database migration - Updated version for PostgreSQL 18.x
 	implementation 'org.flywaydb:flyway-core:10.21.0'
 	implementation 'org.flywaydb:flyway-database-postgresql:10.21.0'
+
+	// Dotenv - Load environment variables from .env file
+	implementation 'me.paulschwarz:spring-dotenv:4.0.0'
 
 	// JWT
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
