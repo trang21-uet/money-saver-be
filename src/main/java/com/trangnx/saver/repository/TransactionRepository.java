@@ -22,6 +22,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     List<Transaction> findByUserIdAndAccountId(Long userId, Long accountId);
 
+    Long countByUserId(Long userId);
+
     @Query("SELECT SUM(t.amount) FROM Transaction t " +
             "WHERE t.user.id = :userId AND t.type = :type " +
             "AND t.transactionDate BETWEEN :startDate AND :endDate")

@@ -14,4 +14,6 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> findByUserIdAndType(Long userId, Category.TransactionType type);
 
     boolean existsByUserIdAndName(Long userId, String name);
+
+    Long countByUserId(Long userId);
 }

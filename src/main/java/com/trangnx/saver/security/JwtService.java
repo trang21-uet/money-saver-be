@@ -19,8 +19,11 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String secret;
 
-    @Value("${jwt.expiration}")
-    private Long expiration;
+    @Value("${jwt.access-token-expiration}")
+    private Long accessTokenExpiration;
+
+    @Value("${jwt.refresh-token-expiration}")
+    private Long refreshTokenExpiration;
 
     private SecretKey getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secret);
@@ -52,13 +55,21 @@ public class JwtService {
         return extractExpiration(token).before(new Date());
     }
 
-    public String generateToken(String email, Long userId) {
+    public String generateAccessToken(String email, Long userId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
-        return createToken(claims, email);
+        claims.put("tokenType", "ACCESS");
+        return createToken(claims, email, accessTokenExpiration);
     }
 
-    private String createToken(Map<String, Object> claims, String subject) {
+    public String generateRefreshToken(String email, Long userId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId);
+        claims.put("tokenType", "REFRESH");
+        return createToken(claims, email, refreshTokenExpiration);
+    }
+
+    private String createToken(Map<String, Object> claims, String subject, Long expiration) {
         return Jwts.builder()
                 .claims(claims)
                 .subject(subject)
@@ -69,12 +80,55 @@ public class JwtService {
     }
 
     public Boolean validateToken(String token, String email) {
-        final String extractedEmail = extractEmail(token);
-        return (extractedEmail.equals(email) && !isTokenExpired(token));
+        try {
+            final String extractedEmail = extractEmail(token);
+            System.out.println("DEBUG validateToken:");
+            System.out.println("  - Input email: " + email);
+            System.out.println("  - Extracted email from token: " + extractedEmail);
+            System.out.println("  - Emails match: " + extractedEmail.equals(email));
+            System.out.println("  - Token expired: " + isTokenExpired(token));
+
+            return (extractedEmail.equals(email) && !isTokenExpired(token));
+        } catch (Exception e) {
+            System.out.println("DEBUG validateToken ERROR: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
     }
 
     public Long extractUserId(String token) {
         Claims claims = extractAllClaims(token);
         return claims.get("userId", Long.class);
+    }
+
+    public String extractTokenType(String token) {
+        Claims claims = extractAllClaims(token);
+        return claims.get("tokenType", String.class);
+    }
+
+    public boolean isRefreshToken(String token) {
+        try {
+            String tokenType = extractTokenType(token);
+            return "REFRESH".equals(tokenType);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isAccessToken(String token) {
+        try {
+            String tokenType = extractTokenType(token);
+            return "ACCESS".equals(tokenType);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public Long getAccessTokenExpiration() {
+        return accessTokenExpiration;
+    }
+
+    public Long getRefreshTokenExpiration() {
+        return refreshTokenExpiration;
     }
 }
