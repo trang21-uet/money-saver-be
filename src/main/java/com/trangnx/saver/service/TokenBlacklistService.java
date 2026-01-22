@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Date;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -51,8 +50,7 @@ public class TokenBlacklistService {
     public boolean isBlacklisted(String token) {
         try {
             String key = BLACKLIST_PREFIX + token;
-            Boolean exists = redisTemplate.hasKey(key);
-            return Boolean.TRUE.equals(exists);
+            return redisTemplate.hasKey(key);
         } catch (Exception e) {
             System.out.println("DEBUG: Error checking blacklist: " + e.getMessage());
             // If Redis is down, deny access for safety
@@ -79,7 +77,7 @@ public class TokenBlacklistService {
     public long getBlacklistedTokensCount() {
         try {
             var keys = redisTemplate.keys(BLACKLIST_PREFIX + "*");
-            return keys != null ? keys.size() : 0;
+            return keys.size();
         } catch (Exception e) {
             return 0;
         }

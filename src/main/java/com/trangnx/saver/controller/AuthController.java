@@ -1,7 +1,9 @@
 package com.trangnx.saver.controller;
 
 import com.trangnx.saver.dto.AuthResponse;
+import com.trangnx.saver.dto.ErrorResponse;
 import com.trangnx.saver.entity.User;
+import com.trangnx.saver.exception.ResourceNotFoundException;
 import com.trangnx.saver.repository.UserRepository;
 import com.trangnx.saver.security.CustomUserDetails;
 import com.trangnx.saver.security.JwtService;
@@ -38,14 +40,30 @@ public class AuthController {
 
             if (authentication == null || !authentication.isAuthenticated()) {
                 return ResponseEntity.status(401)
-                        .body("Not authenticated. Please provide valid Bearer token.");
+                        .body(ErrorResponse.of(
+                                401,
+                                "Unauthorized",
+                                "Not authenticated. Please provide valid Bearer token.",
+                                "/api/auth/me"
+                        ));
             }
 
-            CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+            // Check if principal is CustomUserDetails
+            Object principal = authentication.getPrincipal();
+            if (!(principal instanceof CustomUserDetails userDetails)) {
+                return ResponseEntity.status(401)
+                        .body(ErrorResponse.of(
+                                401,
+                                "Unauthorized",
+                                "Invalid or expired token. Please login again.",
+                                "/api/auth/me"
+                        ));
+            }
+
             String email = userDetails.getEmail();
 
             User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
 
             AuthResponse response = AuthResponse.builder()
                     .userId(user.getId())
@@ -55,9 +73,22 @@ public class AuthController {
                     .build();
 
             return ResponseEntity.ok(response);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404)
+                    .body(ErrorResponse.of(
+                            404,
+                            "Not Found",
+                            e.getMessage(),
+                            "/api/auth/me"
+                    ));
         } catch (Exception e) {
             return ResponseEntity.status(401)
-                    .body("Invalid or expired token: " + e.getMessage());
+                    .body(ErrorResponse.of(
+                            401,
+                            "Unauthorized",
+                            "Invalid or expired token: " + e.getMessage(),
+                            "/api/auth/me"
+                    ));
         }
     }
 
@@ -70,50 +101,43 @@ public class AuthController {
         try {
             String refreshToken = request.refreshToken();
 
-            // Validate refresh token
             if (refreshToken == null || refreshToken.isEmpty()) {
                 return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Refresh token is required"));
+                        .body(ErrorResponse.of(400, "Bad Request", "Refresh token is required", "/api/auth/refresh"));
             }
 
-            // Check if refresh token is blacklisted
             if (tokenBlacklistService.isBlacklisted(refreshToken)) {
                 return ResponseEntity.status(401)
-                        .body(new ErrorResponse("Refresh token has been revoked"));
+                        .body(ErrorResponse.of(401, "Unauthorized", "Refresh token has been revoked", "/api/auth/refresh"));
             }
 
-            // Verify it's a refresh token
             if (!jwtService.isRefreshToken(refreshToken)) {
                 return ResponseEntity.badRequest()
-                        .body(new ErrorResponse("Invalid token type. Expected refresh token"));
+                        .body(ErrorResponse.of(400, "Bad Request", "Invalid token type. Expected refresh token", "/api/auth/refresh"));
             }
 
-            // Extract user info
             String email = jwtService.extractEmail(refreshToken);
             Long userId = jwtService.extractUserId(refreshToken);
 
-            // Validate token
             if (!jwtService.validateToken(refreshToken, email)) {
                 return ResponseEntity.status(401)
-                        .body(new ErrorResponse("Invalid or expired refresh token"));
+                        .body(ErrorResponse.of(401, "Unauthorized", "Invalid or expired refresh token", "/api/auth/refresh"));
             }
 
-            // Verify user still exists and active
             User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
 
             if (!user.getIsActive()) {
                 return ResponseEntity.status(401)
-                        .body(new ErrorResponse("User account is not active"));
+                        .body(ErrorResponse.of(401, "Unauthorized", "User account is not active", "/api/auth/refresh"));
             }
 
-            // Generate new access token
             String newAccessToken = jwtService.generateAccessToken(email, userId);
-            Long expiresIn = jwtService.getAccessTokenExpiration() / 1000; // Convert to seconds
+            Long expiresIn = jwtService.getAccessTokenExpiration() / 1000;
 
             AuthResponse response = AuthResponse.builder()
                     .accessToken(newAccessToken)
-                    .refreshToken(refreshToken) // Return same refresh token
+                    .refreshToken(refreshToken)
                     .userId(userId)
                     .email(email)
                     .fullName(user.getFullName())
@@ -125,9 +149,12 @@ public class AuthController {
 
             return ResponseEntity.ok(response);
 
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(404)
+                    .body(ErrorResponse.of(404, "Not Found", e.getMessage(), "/api/auth/refresh"));
         } catch (Exception e) {
             return ResponseEntity.status(401)
-                    .body(new ErrorResponse("Token refresh failed: " + e.getMessage()));
+                    .body(ErrorResponse.of(401, "Unauthorized", "Token refresh failed: " + e.getMessage(), "/api/auth/refresh"));
         }
     }
 
@@ -207,8 +234,6 @@ public class AuthController {
             this(success, message, null);
         }
     }
-
-    private record ErrorResponse(String error) {}
 
     private record BlacklistCountResponse(long count) {}
 }

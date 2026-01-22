@@ -19,10 +19,10 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String secret;
 
-    @Value("${jwt.access-token-expiration}")
+    @Value("${jwt.access-token-expiration:900000}")
     private Long accessTokenExpiration;
 
-    @Value("${jwt.refresh-token-expiration}")
+    @Value("${jwt.refresh-token-expiration:604800000}")
     private Long refreshTokenExpiration;
 
     private SecretKey getSigningKey() {
@@ -82,16 +82,9 @@ public class JwtService {
     public Boolean validateToken(String token, String email) {
         try {
             final String extractedEmail = extractEmail(token);
-            System.out.println("DEBUG validateToken:");
-            System.out.println("  - Input email: " + email);
-            System.out.println("  - Extracted email from token: " + extractedEmail);
-            System.out.println("  - Emails match: " + extractedEmail.equals(email));
-            System.out.println("  - Token expired: " + isTokenExpired(token));
-
             return (extractedEmail.equals(email) && !isTokenExpired(token));
         } catch (Exception e) {
             System.out.println("DEBUG validateToken ERROR: " + e.getMessage());
-            e.printStackTrace();
             return false;
         }
     }
