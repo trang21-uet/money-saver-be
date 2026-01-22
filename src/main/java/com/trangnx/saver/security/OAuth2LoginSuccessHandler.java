@@ -5,6 +5,7 @@ import com.trangnx.saver.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
@@ -18,6 +19,9 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
 
     private final UserRepository userRepository;
     private final JwtService jwtService;
+
+    @Value("${oauth.redirect-url}")
+    private String oauthRedirectUrl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -47,12 +51,17 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         String accessToken = jwtService.generateAccessToken(user.getEmail(), user.getId());
         String refreshToken = jwtService.generateRefreshToken(user.getEmail(), user.getId());
 
-        // Redirect to frontend with both tokens
+        // Redirect to configured URL (Flutter deep link or web frontend)
         String redirectUrl = String.format(
-                "http://localhost:3000/auth/callback?access_token=%s&refresh_token=%s",
+                "%s?token=%s&refreshToken=%s",
+                oauthRedirectUrl,
                 accessToken,
                 refreshToken
         );
+
+        System.out.println("DEBUG: OAuth redirect URL configured: " + oauthRedirectUrl);
+        System.out.println("DEBUG: Redirecting to: " + redirectUrl);
+
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 }

@@ -1,17 +1,20 @@
 package com.trangnx.saver.controller;
 
+import com.trangnx.saver.dto.ApiResponse;
 import com.trangnx.saver.dto.AuthResponse;
-import com.trangnx.saver.dto.ErrorResponse;
+import com.trangnx.saver.dto.GoogleLoginRequest;
 import com.trangnx.saver.entity.User;
 import com.trangnx.saver.exception.ResourceNotFoundException;
 import com.trangnx.saver.repository.UserRepository;
 import com.trangnx.saver.security.CustomUserDetails;
 import com.trangnx.saver.security.JwtService;
+import com.trangnx.saver.service.GoogleTokenVerificationService;
 import com.trangnx.saver.service.TokenBlacklistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -27,6 +30,7 @@ public class AuthController {
     private final UserRepository userRepository;
     private final JwtService jwtService;
     private final TokenBlacklistService tokenBlacklistService;
+    private final GoogleTokenVerificationService googleTokenVerificationService;
 
     @GetMapping("/me")
     @Operation(
@@ -34,17 +38,15 @@ public class AuthController {
             description = "Get authenticated user information. Access token is automatically used from Authorization header.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
-    public ResponseEntity<?> getCurrentUser() {
+    public ResponseEntity<ApiResponse<AuthResponse>> getCurrentUser() {
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
             if (authentication == null || !authentication.isAuthenticated()) {
                 return ResponseEntity.status(401)
-                        .body(ErrorResponse.of(
-                                401,
-                                "Unauthorized",
+                        .body(ApiResponse.error(
                                 "Not authenticated. Please provide valid Bearer token.",
-                                "/api/auth/me"
+                                "UNAUTHORIZED"
                         ));
             }
 
@@ -52,11 +54,9 @@ public class AuthController {
             Object principal = authentication.getPrincipal();
             if (!(principal instanceof CustomUserDetails userDetails)) {
                 return ResponseEntity.status(401)
-                        .body(ErrorResponse.of(
-                                401,
-                                "Unauthorized",
+                        .body(ApiResponse.error(
                                 "Invalid or expired token. Please login again.",
-                                "/api/auth/me"
+                                "INVALID_TOKEN"
                         ));
             }
 
@@ -65,30 +65,105 @@ public class AuthController {
             User user = userRepository.findByEmail(email)
                     .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
 
-            AuthResponse response = AuthResponse.builder()
+            AuthResponse authResponse = AuthResponse.builder()
                     .userId(user.getId())
                     .email(user.getEmail())
                     .fullName(user.getFullName())
                     .avatarUrl(user.getAvatarUrl())
                     .build();
 
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(authResponse));
+
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(404)
-                    .body(ErrorResponse.of(
-                            404,
-                            "Not Found",
-                            e.getMessage(),
-                            "/api/auth/me"
-                    ));
+                    .body(ApiResponse.error(e.getMessage(), "RESOURCE_NOT_FOUND"));
         } catch (Exception e) {
             return ResponseEntity.status(401)
-                    .body(ErrorResponse.of(
-                            401,
-                            "Unauthorized",
+                    .body(ApiResponse.error(
                             "Invalid or expired token: " + e.getMessage(),
-                            "/api/auth/me"
+                            "UNAUTHORIZED"
                     ));
+        }
+    }
+
+    @PostMapping("/google")
+    @Operation(
+            summary = "Login with Google (Client-side)",
+            description = "Authenticate using Google ID token from google_sign_in package"
+    )
+    public ResponseEntity<ApiResponse<AuthResponse>> loginWithGoogle(
+            @Valid @RequestBody GoogleLoginRequest request) {
+        try {
+            System.out.println("DEBUG: /api/auth/google - Received ID token: " +
+                    request.getIdToken().substring(0, Math.min(50, request.getIdToken().length())) + "...");
+
+            // Verify Google ID token
+            var payload = googleTokenVerificationService.verifyIdToken(request.getIdToken());
+            System.out.println("DEBUG: ID token verified successfully");
+
+            var googleUserInfo = googleTokenVerificationService.extractUserInfo(payload);
+            System.out.println("DEBUG: User info extracted - Email: " + googleUserInfo.getEmail() +
+                    ", Name: " + googleUserInfo.getName());
+
+            // Find or create user
+            User user = userRepository.findByEmail(googleUserInfo.getEmail())
+                    .orElseGet(() -> {
+                        System.out.println("DEBUG: Creating new user for email: " + googleUserInfo.getEmail());
+                        User newUser = User.builder()
+                                .email(googleUserInfo.getEmail())
+                                .fullName(googleUserInfo.getName())
+                                .googleId(googleUserInfo.getGoogleId())
+                                .avatarUrl(googleUserInfo.getPictureUrl())
+                                .provider(User.AuthProvider.GOOGLE)
+                                .isActive(true)
+                                .build();
+                        return userRepository.save(newUser);
+                    });
+
+            System.out.println("DEBUG: User found/created - ID: " + user.getId() + ", Email: " + user.getEmail());
+
+            // Generate JWT tokens
+            String accessToken = jwtService.generateAccessToken(user.getEmail(), user.getId());
+            String refreshToken = jwtService.generateRefreshToken(user.getEmail(), user.getId());
+            Long expiresIn = jwtService.getAccessTokenExpiration() / 1000; // seconds
+
+            System.out.println("DEBUG: Tokens generated - Access token length: " + accessToken.length() +
+                    ", Refresh token length: " + refreshToken.length() + ", Expires in: " + expiresIn + "s");
+
+            AuthResponse authResponse = AuthResponse.builder()
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
+                    .userId(user.getId())
+                    .email(user.getEmail())
+                    .fullName(user.getFullName())
+                    .avatarUrl(user.getAvatarUrl())
+                    .expiresIn(expiresIn)
+                    .build();
+
+            System.out.println("DEBUG: AuthResponse created - " +
+                    "userId: " + authResponse.getUserId() +
+                    ", email: " + authResponse.getEmail() +
+                    ", accessToken present: " + (authResponse.getAccessToken() != null) +
+                    ", refreshToken present: " + (authResponse.getRefreshToken() != null));
+
+            ApiResponse<AuthResponse> response = ApiResponse.success("Login successful", authResponse);
+
+            System.out.println("DEBUG: Final ApiResponse - success: " + response.isSuccess() +
+                    ", message: " + response.getMessage() +
+                    ", data present: " + (response.getData() != null));
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            System.err.println("ERROR: Invalid token - " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getMessage(), "INVALID_TOKEN"));
+        } catch (Exception e) {
+            System.err.println("ERROR: Authentication failed - " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error("Authentication failed: " + e.getMessage(), "AUTH_ERROR"));
         }
     }
 
@@ -97,23 +172,23 @@ public class AuthController {
             summary = "Refresh access token",
             description = "Get new access token using refresh token"
     )
-    public ResponseEntity<?> refreshToken(@RequestBody RefreshTokenRequest request) {
+    public ResponseEntity<ApiResponse<AuthResponse>> refreshToken(@RequestBody RefreshTokenRequest request) {
         try {
             String refreshToken = request.refreshToken();
 
             if (refreshToken == null || refreshToken.isEmpty()) {
                 return ResponseEntity.badRequest()
-                        .body(ErrorResponse.of(400, "Bad Request", "Refresh token is required", "/api/auth/refresh"));
+                        .body(ApiResponse.error("Refresh token is required", "INVALID_REQUEST"));
             }
 
             if (tokenBlacklistService.isBlacklisted(refreshToken)) {
                 return ResponseEntity.status(401)
-                        .body(ErrorResponse.of(401, "Unauthorized", "Refresh token has been revoked", "/api/auth/refresh"));
+                        .body(ApiResponse.error("Refresh token has been revoked", "TOKEN_REVOKED"));
             }
 
             if (!jwtService.isRefreshToken(refreshToken)) {
                 return ResponseEntity.badRequest()
-                        .body(ErrorResponse.of(400, "Bad Request", "Invalid token type. Expected refresh token", "/api/auth/refresh"));
+                        .body(ApiResponse.error("Invalid token type. Expected refresh token", "INVALID_TOKEN_TYPE"));
             }
 
             String email = jwtService.extractEmail(refreshToken);
@@ -121,7 +196,7 @@ public class AuthController {
 
             if (!jwtService.validateToken(refreshToken, email)) {
                 return ResponseEntity.status(401)
-                        .body(ErrorResponse.of(401, "Unauthorized", "Invalid or expired refresh token", "/api/auth/refresh"));
+                        .body(ApiResponse.error("Invalid or expired refresh token", "TOKEN_EXPIRED"));
             }
 
             User user = userRepository.findByEmail(email)
@@ -129,13 +204,13 @@ public class AuthController {
 
             if (!user.getIsActive()) {
                 return ResponseEntity.status(401)
-                        .body(ErrorResponse.of(401, "Unauthorized", "User account is not active", "/api/auth/refresh"));
+                        .body(ApiResponse.error("User account is not active", "ACCOUNT_INACTIVE"));
             }
 
             String newAccessToken = jwtService.generateAccessToken(email, userId);
             Long expiresIn = jwtService.getAccessTokenExpiration() / 1000;
 
-            AuthResponse response = AuthResponse.builder()
+            AuthResponse authResponse = AuthResponse.builder()
                     .accessToken(newAccessToken)
                     .refreshToken(refreshToken)
                     .userId(userId)
@@ -147,14 +222,14 @@ public class AuthController {
 
             System.out.println("DEBUG: Access token refreshed for user: " + email);
 
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", authResponse));
 
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(404)
-                    .body(ErrorResponse.of(404, "Not Found", e.getMessage(), "/api/auth/refresh"));
+                    .body(ApiResponse.error(e.getMessage(), "RESOURCE_NOT_FOUND"));
         } catch (Exception e) {
             return ResponseEntity.status(401)
-                    .body(ErrorResponse.of(401, "Unauthorized", "Token refresh failed: " + e.getMessage(), "/api/auth/refresh"));
+                    .body(ApiResponse.error("Token refresh failed: " + e.getMessage(), "AUTH_ERROR"));
         }
     }
 
@@ -164,14 +239,16 @@ public class AuthController {
             description = "Logout user and invalidate tokens. Access token is automatically used from Authorization header.",
             security = @SecurityRequirement(name = "bearerAuth")
     )
-    public ResponseEntity<?> logout(HttpServletRequest request, @RequestBody(required = false) LogoutRequest logoutRequest) {
+    public ResponseEntity<ApiResponse<LogoutResponse>> logout(
+            HttpServletRequest request,
+            @RequestBody(required = false) LogoutRequest logoutRequest) {
         try {
             // Get access token from Authorization header
             String authHeader = request.getHeader("Authorization");
 
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 return ResponseEntity.badRequest()
-                        .body(new LogoutResponse(false, "No token provided"));
+                        .body(ApiResponse.error("No token provided", "INVALID_REQUEST"));
             }
 
             String accessToken = authHeader.substring(7);
@@ -197,15 +274,23 @@ public class AuthController {
 
             System.out.println("DEBUG: User logged out: " + userEmail);
 
-            return ResponseEntity.ok(new LogoutResponse(
+            LogoutResponse logoutResponse = new LogoutResponse(
                     true,
                     "Logged out successfully. Tokens invalidated.",
                     userEmail
+            );
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    "Logout successful",
+                    logoutResponse
             ));
 
         } catch (Exception e) {
             return ResponseEntity.status(500)
-                    .body(new LogoutResponse(false, "Logout failed: " + e.getMessage()));
+                    .body(ApiResponse.error(
+                            "Logout failed: " + e.getMessage(),
+                            "LOGOUT_ERROR"
+                    ));
         }
     }
 
@@ -215,9 +300,10 @@ public class AuthController {
             description = "Get count of blacklisted tokens in Redis (for monitoring)",
             security = @SecurityRequirement(name = "bearerAuth")
     )
-    public ResponseEntity<?> getBlacklistCount() {
+    public ResponseEntity<ApiResponse<BlacklistCountResponse>> getBlacklistCount() {
         long count = tokenBlacklistService.getBlacklistedTokensCount();
-        return ResponseEntity.ok(new BlacklistCountResponse(count));
+        BlacklistCountResponse response = new BlacklistCountResponse(count);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     // Request/Response records
