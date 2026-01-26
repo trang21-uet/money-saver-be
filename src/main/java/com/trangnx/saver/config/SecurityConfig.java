@@ -1,7 +1,7 @@
 package com.trangnx.saver.config;
 
+import com.trangnx.saver.security.JwtAuthenticationEntryPoint;
 import com.trangnx.saver.security.JwtAuthenticationFilter;
-import com.trangnx.saver.security.OAuth2LoginSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,8 +17,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -35,15 +35,13 @@ public class SecurityConfig {
                                 "/api/health/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
-                                "/swagger-ui.html",
-                                "/oauth2/**",
-                                "/login/**"
+                                "/swagger-ui.html"
                         ).permitAll()
                         // All other endpoints require authentication
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(oauth2 -> oauth2
-                        .successHandler(oAuth2LoginSuccessHandler)
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                 )
                 // Add JWT filter before UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

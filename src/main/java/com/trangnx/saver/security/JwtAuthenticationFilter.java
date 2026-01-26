@@ -70,7 +70,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // Load user from database
                 var user = userRepository.findByEmail(userEmail).orElse(null);
 
-                if (user != null && user.getIsActive()) {
+                if (user == null) {
+                    // User no longer exists - blacklist token
+                    System.out.println("DEBUG: User not found in database, token should be blacklisted: " + userEmail);
+                    tokenBlacklistService.blacklistToken(jwt);
+                } else if (!user.getIsActive()) {
+                    // User is inactive - blacklist token
+                    System.out.println("DEBUG: User account is inactive: " + userEmail);
+                    tokenBlacklistService.blacklistToken(jwt);
+                } else {
                     // Validate token
                     if (jwtService.validateToken(jwt, userEmail)) {
                         // Create authentication token
