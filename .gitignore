@@ -18,14 +18,25 @@ logs/
 application-local.yml
 application-local.properties
 
-# Flutter
+# Flutter - Exclude all Flutter files (backend only repo)
+lib/
+android/
+ios/
+linux/
+macos/
+windows/
+web/
+test/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
 .pub-cache/
 .pub/
-build/
+pubspec.yaml
+pubspec.lock
+.metadata
+analysis_options.yaml
 *.g.dart
 *.freezed.dart
 
