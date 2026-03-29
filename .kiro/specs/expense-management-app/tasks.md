@@ -1,0 +1,737 @@
+# Kế Hoạch Triển Khai - Ứng Dụng Quản Lý Chi Tiêu Banana
+
+## Tổng Quan
+
+Tài liệu này mô tả kế hoạch triển khai từng bước để xây dựng ứng dụng quản lý chi tiêu Banana, bao gồm backend Spring Boot, database PostgreSQL và frontend Flutter. Các task được sắp xếp theo thứ tự triển khai hợp lý, từ cơ sở hạ tầng đến các tính năng nâng cao.
+
+## Các Task Triển Khai
+
+- [x] 1. Thiết lập cơ sở hạ tầng và cấu hình dự án
+  - Tạo cấu trúc thư mục cho backend Spring Boot theo package structure trong design
+  - Tạo cấu trúc thư mục cho Flutter app theo clean architecture
+  - Cấu hình PostgreSQL database connection trong Spring Boot
+  - Cấu hình Redis cache cho statistics
+  - Thiết lập JWT authentication configuration
+  - Cấu hình CORS và security settings
+  - Thiết lập logging và exception handling
+  - _Yêu cầu: 15.1, 15.2, 15.3, 20.4_
+
+- [ ] 2. Tạo database schema và entities
+  - [ ] 2.1 Tạo bảng users với các trường theo design schema
+    - Implement User entity với JPA annotations
+    - Tạo migration script cho users table với indexes
+    - _Yêu cầu: 15.1, 15.2_
+  - [ ] 2.2 Tạo bảng accounts (nguồn tiền)
+    - Implement Account entity với các trường cơ bản
+    - Thêm các trường cho savings account: interest_rate, expected_withdrawal_date
+    - Thêm các trường cho credit card: credit_limit, current_debt, payment_due_date
+    - Tạo migration script với foreign key đến users
+    - Thêm indexes cho user_id, type, payment_due_date và deleted_at
+    - _Yêu cầu: 2.1, 2.2, 2.3, 2.7, 2.10_
+  - [ ] 2.3 Tạo bảng categories (danh mục)
+    - Implement Category entity
+    - Tạo migration script với support cho default categories
+    - Seed data cho các danh mục mặc định
+    - _Yêu cầu: 16.1, 16.2_
+  - [ ] 2.4 Tạo bảng transactions (giao dịch)
+    - Implement Transaction entity với soft delete
+    - Tạo migration script với indexes cho user_id, account_id, category_id, transaction_date
+    - _Yêu cầu: 1.1, 1.2, 1.5, 1.6_
+  - [ ] 2.5 Tạo các bảng bổ sung
+    - Tạo budgets, debts, debt_payments, reminders tables
+    - Tạo groups, group_members, group_balances tables
+    - Tạo savings_goals, assets, asset_value_history tables
+    - Tạo reports, ml_classification_models, backups tables
+    - _Yêu cầu: 4.1, 5.1, 6.1, 8.1, 12.1, 14.1, 18.2_
+
+- [ ] 3. Checkpoint - Xác nhận database schema
+  - Đảm bảo tất cả bảng được tạo thành công với đầy đủ indexes và foreign keys, hỏi người dùng nếu có thắc mắc.
+
+- [ ] 4. Implement authentication và user management
+  - [ ] 4.1 Tạo JWT token provider và authentication filter
+    - Implement JwtTokenProvider với token generation và validation
+    - Implement JwtAuthenticationFilter để intercept requests
+    - Cấu hình SecurityConfig với JWT
+    - _Yêu cầu: 15.3, 15.4_
+  - [ ] 4.2 Implement AuthController và AuthService
+    - API đăng ký (POST /api/auth/register) với bcrypt password hashing
+    - API đăng nhập (POST /api/auth/login) với JWT token response
+    - API refresh token (POST /api/auth/refresh)
+    - API quên mật khẩu và đặt lại mật khẩu
+    - _Yêu cầu: 15.1, 15.2, 15.7_
+  - [ ] 4.3 Implement rate limiting cho authentication
+    - Giới hạn 5 lần đăng nhập sai trong 15 phút
+    - Sử dụng Redis hoặc in-memory cache
+    - _Yêu cầu: 15.6_
+  - [ ]\* 4.4 Viết unit tests cho authentication
+    - Test JWT token generation và validation
+    - Test login với credentials đúng và sai
+    - Test rate limiting behavior
+    - _Yêu cầu: 15.1, 15.2, 15.6_
+
+- [ ] 5. Implement quản lý nguồn tiền (Accounts)
+  - [ ] 5.1 Tạo AccountRepository và AccountService
+    - CRUD operations cho accounts
+    - Logic tính toán current_balance
+    - Pessimistic locking cho concurrent updates
+    - _Yêu cầu: 2.1, 2.3, 2.6_
+  - [ ] 5.2 Implement logic cho savings account
+    - Validation cho interest_rate (0-100%) và expected_withdrawal_date (phải ở tương lai)
+    - Method calculateExpectedInterest: tính lãi dự kiến theo công thức trong design
+    - Scheduled job chạy hàng ngày để cập nhật expected_interest vào cache
+    - _Yêu cầu: 2.7, 2.8, 2.9_
+  - [ ] 5.3 Implement logic cho credit card
+    - Validation cho credit_limit (phải dương), current_debt (không âm), payment_due_date
+    - Method getAvailableCredit: tính số tiền khả dụng (credit_limit - current_debt)
+    - Method processExpenseTransaction: cập nhật current_debt khi chi tiêu bằng thẻ tín dụng
+    - Method payDebt: thanh toán dư nợ và tạo transaction tương ứng
+    - Kiểm tra không vượt quá credit_limit khi chi tiêu
+    - _Yêu cầu: 2.10, 2.11, 2.14_
+  - [ ] 5.4 Implement scheduled job cho credit card alerts
+    - Scheduled job chạy hàng ngày lúc 9:00 AM
+    - Kiểm tra các thẻ tín dụng có payment_due_date còn 3 ngày hoặc ít hơn
+    - Gửi cảnh báo trước 3 ngày qua NotificationService
+    - Gửi nhắc nhở vào đúng ngày đến hạn
+    - _Yêu cầu: 2.12, 2.13_
+  - [ ] 5.5 Implement thống kê theo nguồn tiền
+    - Method getAccountStatistics: tính tổng thu, tổng chi, số dư ròng theo account_id và khoảng thời gian
+    - Tạo biểu đồ thu chi theo thời gian (incomeChart, expenseChart)
+    - Tính phân tích chi tiêu theo category
+    - _Yêu cầu: 2.15, 2.16, 2.17_
+  - [ ] 5.6 Tạo AccountController với REST endpoints
+    - GET /api/accounts - Lấy danh sách nguồn tiền
+    - POST /api/accounts - Tạo nguồn tiền mới với validation theo type
+    - PUT /api/accounts/{id} - Cập nhật nguồn tiền
+    - DELETE /api/accounts/{id} - Xóa nguồn tiền (soft delete)
+    - GET /api/accounts/balance - Tổng số dư
+    - GET /api/accounts/{id}/transactions - Lấy giao dịch theo nguồn tiền với pagination và filter
+    - GET /api/accounts/{id}/statistics - Lấy thống kê thu chi theo nguồn tiền
+    - GET /api/accounts/savings/interest - Tính lãi cho tất cả savings accounts
+    - GET /api/accounts/credit-cards/alerts - Lấy cảnh báo cho tất cả credit cards
+    - POST /api/accounts/{id}/pay-debt - Thanh toán dư nợ thẻ tín dụng
+    - _Yêu cầu: 2.1, 2.4, 2.8, 2.11, 2.14, 2.15, 2.16_
+  - [ ]\* 5.7 Viết unit tests cho AccountService
+    - Test tạo account với initial balance
+    - Test cập nhật balance với concurrent requests
+    - Test soft delete behavior
+    - Test calculateExpectedInterest với nhiều trường hợp
+    - Test getAvailableCredit cho credit card
+    - Test processExpenseTransaction với credit card (thành công và vượt hạn mức)
+    - Test payDebt với số tiền hợp lệ và không hợp lệ
+    - Test getAccountStatistics với nhiều giao dịch
+    - _Yêu cầu: 2.1, 2.3, 2.6, 2.8, 2.11, 2.14, 2.16_
+  - [ ]\* 5.8 Viết property-based tests cho Account
+    - **Property 1: Tính toán lãi suất tài khoản tiết kiệm**
+    - **Validates: Requirements 2.8**
+    - Test với nhiều giá trị ngẫu nhiên cho balance, interest_rate, days_until_withdrawal
+  - [ ]\* 5.9 Viết property-based tests cho Credit Card
+    - **Property 2: Số tiền khả dụng thẻ tín dụng**
+    - **Validates: Requirements 2.11**
+    - **Property 3: Cập nhật dư nợ khi chi tiêu bằng thẻ tín dụng**
+    - **Validates: Requirements 2.3, 2.14**
+    - **Property 4: Giới hạn hạn mức tín dụng**
+    - **Validates: Requirements 2.3**
+    - **Property 5: Thanh toán dư nợ thẻ tín dụng**
+    - **Validates: Requirements 2.14**
+  - [ ]\* 5.10 Viết property-based tests cho Account Statistics
+    - **Property 7: Thống kê theo nguồn tiền - Tổng thu chi**
+    - **Validates: Requirements 2.16**
+    - **Property 8: Số dư ròng theo nguồn tiền**
+    - **Validates: Requirements 2.16**
+    - **Property 9: Lọc giao dịch theo nguồn tiền**
+    - **Validates: Requirements 2.15**
+
+- [ ] 6. Implement quản lý danh mục (Categories)
+  - [ ] 6.1 Tạo CategoryRepository và CategoryService
+    - Logic lấy default categories và custom categories
+    - Logic xóa category với reassignment
+    - _Yêu cầu: 16.1, 16.2, 16.3, 16.4_
+  - [ ] 6.2 Tạo CategoryController
+    - GET /api/categories
+    - POST /api/categories - Tạo custom category
+    - PUT /api/categories/{id}
+    - DELETE /api/categories/{id} với reassignment logic
+    - PUT /api/categories/reorder
+    - _Yêu cầu: 16.2, 16.3, 16.5_
+
+- [ ] 7. Implement quản lý giao dịch (Transactions)
+  - [ ] 7.1 Tạo TransactionRepository và TransactionService
+    - CRUD operations với soft delete
+    - Logic tự động cập nhật account balance
+    - Transaction rollback nếu update balance thất bại
+    - _Yêu cầu: 1.1, 1.2, 1.4, 1.5, 2.3_
+  - [ ] 7.2 Implement search và filter logic
+    - Filter theo khoảng thời gian, category, account, type
+    - Full-text search trong note field
+    - Pagination với Spring Data
+    - _Yêu cầu: 1.7, 17.1, 17.2, 17.4_
+  - [ ] 7.3 Tạo TransactionController
+    - GET /api/transactions với pagination và filters
+    - POST /api/transactions - Tạo giao dịch mới
+    - PUT /api/transactions/{id}
+    - DELETE /api/transactions/{id} - Soft delete
+    - GET /api/transactions/search
+    - POST /api/transactions/bulk
+    - _Yêu cầu: 1.1, 1.3, 1.4, 1.5, 17.1_
+  - [ ]\* 7.4 Viết integration tests cho transactions
+    - Test tạo transaction và verify account balance update
+    - Test soft delete và rollback
+    - Test search và filter với nhiều criteria
+    - _Yêu cầu: 1.2, 1.5, 2.3_
+
+- [ ] 8. Checkpoint - Kiểm tra core functionality
+  - Đảm bảo có thể tạo user, account, category và transaction thành công, hỏi người dùng nếu có vấn đề.
+
+- [ ] 9. Implement thống kê chi tiêu (Statistics)
+  - [ ] 9.1 Tạo StatisticsService với caching
+    - Tính toán tổng thu, tổng chi, số dư ròng theo kỳ
+    - Thống kê theo category với percentage
+    - Xu hướng chi tiêu so với kỳ trước
+    - Sử dụng Redis cache với TTL 5 phút
+    - _Yêu cầu: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
+  - [ ] 9.2 Tạo StatisticsController
+    - GET /api/statistics/overview
+    - GET /api/statistics/by-category
+    - GET /api/statistics/by-period
+    - GET /api/statistics/trends
+    - GET /api/statistics/compare
+    - Response time < 1 giây
+    - _Yêu cầu: 3.3, 13.1, 13.2, 13.3_
+  - [ ]\* 9.3 Viết tests cho statistics calculations
+    - Test tính toán với nhiều transactions
+    - Test cache hit và cache miss
+    - Test performance với 1000+ transactions
+    - _Yêu cầu: 3.3, 20.6_
+
+- [ ] 10. Implement quản lý ngân sách (Budgets)
+  - [ ] 10.1 Tạo BudgetService
+    - CRUD operations cho budgets
+    - Tính toán phần trăm sử dụng budget
+    - Logic kiểm tra vượt ngưỡng 80% và 100%
+    - _Yêu cầu: 4.1, 4.4, 4.5_
+  - [ ] 10.2 Tạo BudgetController
+    - GET /api/budgets
+    - POST /api/budgets
+    - PUT /api/budgets/{id}
+    - DELETE /api/budgets/{id}
+    - GET /api/budgets/{id}/progress
+    - _Yêu cầu: 4.1, 4.6_
+  - [ ] 10.3 Implement notification trigger cho budget alerts
+    - Scheduled job kiểm tra budgets định kỳ
+    - Gửi notification khi vượt 80% và 100%
+    - _Yêu cầu: 4.2, 4.3_
+
+- [ ] 11. Implement quản lý nợ (Debts)
+  - [ ] 11.1 Tạo DebtService
+    - CRUD operations cho debts
+    - Logic thanh toán một phần và cập nhật remaining_amount
+    - Tính toán lãi suất tích lũy
+    - _Yêu cầu: 5.1, 5.3, 5.5, 5.6_
+  - [ ] 11.2 Tạo DebtController
+    - GET /api/debts
+    - POST /api/debts
+    - PUT /api/debts/{id}
+    - DELETE /api/debts/{id}
+    - POST /api/debts/{id}/payment
+    - _Yêu cầu: 5.1, 5.2, 5.3_
+  - [ ] 11.3 Implement reminder cho debt due dates
+    - Scheduled job kiểm tra debts sắp đến hạn
+    - Gửi notification trước 3 ngày, 1 ngày và đúng ngày đáo hạn
+    - _Yêu cầu: 5.4_
+
+- [ ] 12. Implement nhắc nhở thanh toán (Reminders)
+  - [ ] 12.1 Tạo ReminderService
+    - CRUD operations cho reminders
+    - Logic tạo reminder tiếp theo cho recurring reminders
+    - _Yêu cầu: 6.1, 6.4, 6.5_
+  - [ ] 12.2 Tạo ReminderController
+    - GET /api/reminders
+    - POST /api/reminders
+    - PUT /api/reminders/{id}
+    - DELETE /api/reminders/{id}
+    - POST /api/reminders/{id}/complete
+    - _Yêu cầu: 6.1, 6.3, 6.5, 6.6_
+  - [ ] 12.3 Implement scheduled notification service
+    - Scheduled job kiểm tra reminders đến hạn
+    - Gửi push notification đến thiết bị
+    - Tự động tạo reminder tiếp theo cho recurring
+    - _Yêu cầu: 6.2, 6.4_
+
+- [ ] 13. Implement notification service
+  - [ ] 13.1 Tạo NotificationService với Firebase Cloud Messaging
+    - Gửi push notification đến thiết bị
+    - Template cho các loại notification (budget alert, debt reminder, reminder, group activity)
+    - _Yêu cầu: 4.2, 4.3, 5.4, 6.2, 8.7_
+  - [ ] 13.2 Tạo EmailService
+    - Gửi email cho password reset
+    - Gửi email cho group invitations
+    - _Yêu cầu: 8.1, 15.7_
+  - [ ]\* 13.3 Viết tests cho notification delivery
+    - Mock Firebase và email service
+    - Test notification templates
+    - _Yêu cầu: 4.2, 6.2_
+
+- [ ] 14. Implement mục tiêu tiết kiệm (Savings Goals)
+  - [ ] 14.1 Tạo SavingsGoalService
+    - CRUD operations cho savings goals
+    - Logic đóng góp và rút tiền
+    - Tạo transaction tương ứng khi contribute/withdraw
+    - Tính toán số tiền cần tiết kiệm mỗi tháng
+    - _Yêu cầu: 12.1, 12.2, 12.3, 12.5, 12.7_
+  - [ ] 14.2 Tạo SavingsGoalController
+    - GET /api/savings-goals
+    - POST /api/savings-goals
+    - PUT /api/savings-goals/{id}
+    - DELETE /api/savings-goals/{id}
+    - POST /api/savings-goals/{id}/contribute
+    - POST /api/savings-goals/{id}/withdraw
+    - _Yêu cầu: 12.1, 12.2, 12.7_
+  - [ ] 14.3 Implement notification khi đạt 100% goal
+    - Kiểm tra progress sau mỗi contribution
+    - Gửi congratulation notification
+    - _Yêu cầu: 12.4, 12.6_
+
+- [ ] 15. Implement quản lý tài sản (Assets)
+  - [ ] 15.1 Tạo AssetService
+    - CRUD operations cho assets
+    - Lưu lịch sử thay đổi giá trị vào asset_value_history
+    - Tính toán net worth (assets + accounts - debts)
+    - _Yêu cầu: 14.1, 14.2, 14.4, 14.6_
+  - [ ] 15.2 Tạo AssetController
+    - GET /api/assets
+    - POST /api/assets
+    - PUT /api/assets/{id}
+    - DELETE /api/assets/{id}
+    - GET /api/assets/net-worth
+    - _Yêu cầu: 14.1, 14.3, 14.4, 14.5_
+
+- [ ] 16. Checkpoint - Kiểm tra business logic features
+  - Đảm bảo budgets, debts, reminders, savings goals và assets hoạt động đúng, hỏi người dùng nếu cần.
+
+- [ ] 17. Implement chia sẻ chi tiêu nhóm (Groups)
+  - [ ] 17.1 Tạo GroupService
+    - CRUD operations cho groups
+    - Generate unique invite code
+    - Logic thêm/xóa members
+    - Tính toán group balances
+    - Logic settle payments giữa members
+    - _Yêu cầu: 8.1, 8.2, 8.4, 8.5, 8.6, 8.8_
+  - [ ] 17.2 Tạo GroupController
+    - GET /api/groups
+    - POST /api/groups
+    - GET /api/groups/{id}
+    - PUT /api/groups/{id}
+    - DELETE /api/groups/{id}
+    - POST /api/groups/{id}/invite
+    - POST /api/groups/{id}/join
+    - DELETE /api/groups/{id}/leave
+    - GET /api/groups/{id}/balance
+    - POST /api/groups/{id}/settle
+    - _Yêu cầu: 8.1, 8.2, 8.3, 8.5, 8.6, 8.8_
+  - [ ] 17.3 Tích hợp group transactions với TransactionService
+    - Cho phép tạo transaction thuộc group
+    - Tự động cập nhật group balances
+    - Gửi notification đến group members
+    - _Yêu cầu: 8.3, 8.4, 8.7_
+  - [ ]\* 17.4 Viết tests cho group balance calculations
+    - Test split calculations với nhiều members
+    - Test settle payment logic
+    - _Yêu cầu: 8.4, 8.6_
+
+- [ ] 18. Implement phân loại tự động (ML Classification)
+  - [ ] 18.1 Tạo MLClassificationService
+    - Train Naive Bayes model từ lịch sử transactions của user
+    - Predict category dựa trên transaction note
+    - Tính confidence score
+    - Lưu model vào database per user
+    - _Yêu cầu: 7.1, 7.2, 7.5_
+  - [ ] 18.2 Tích hợp auto classification vào TransactionService
+    - Gọi MLClassificationService khi tạo transaction
+    - Auto-apply nếu confidence > 90%
+    - Suggest nếu confidence 70-90%
+    - _Yêu cầu: 7.1, 7.3, 7.4_
+  - [ ] 18.3 Implement scheduled job để retrain models
+    - Retrain model khi có đủ data mới (mỗi 100 transactions)
+    - Update accuracy metrics
+    - _Yêu cầu: 7.2, 7.5_
+  - [ ]\* 18.4 Viết tests cho ML classification
+    - Test training với sample data
+    - Test prediction accuracy
+    - Test confidence thresholds
+    - _Yêu cầu: 7.1, 7.3, 7.4_
+
+- [ ] 19. Implement quét hóa đơn OCR
+  - [ ] 19.1 Tạo OCRService với Tesseract hoặc Google Vision API
+    - Pre-process ảnh (resize, enhance contrast)
+    - Extract text từ ảnh
+    - Parse amount, date, merchant name
+    - _Yêu cầu: 11.1, 11.2, 11.4_
+  - [ ] 19.2 Tạo OCRController
+    - POST /api/ocr/scan - Upload ảnh và trả về extracted data
+    - GET /api/ocr/history
+    - _Yêu cầu: 11.1, 11.3_
+  - [ ] 19.3 Tích hợp OCR với TransactionService
+    - Lưu ảnh hóa đơn vào cloud storage (S3)
+    - Attach image URL vào transaction
+    - _Yêu cầu: 11.6_
+  - [ ]\* 19.4 Viết tests cho OCR extraction
+    - Test với sample receipt images
+    - Test error handling khi OCR fails
+    - _Yêu cầu: 11.4, 11.7_
+
+- [ ] 20. Implement xuất báo cáo (Reports)
+  - [ ] 20.1 Tạo ReportService
+    - Generate PDF report với transaction summary và charts
+    - Generate Excel report với detailed transactions
+    - Lưu file vào cloud storage
+    - Auto-delete sau 30 ngày
+    - _Yêu cầu: 9.1, 9.2, 9.3, 9.5_
+  - [ ] 20.2 Tạo ReportController
+    - POST /api/reports/generate
+    - GET /api/reports
+    - GET /api/reports/{id}/download
+    - _Yêu cầu: 9.1, 9.4, 9.6_
+  - [ ]\* 20.3 Viết tests cho report generation
+    - Test PDF generation với sample data
+    - Test Excel generation
+    - Test file cleanup job
+    - _Yêu cầu: 9.3, 9.5_
+
+- [ ] 21. Implement đồng bộ đa thiết bị (Sync)
+  - [ ] 21.1 Tạo SyncService
+    - Pull endpoint trả về tất cả data của user
+    - Push endpoint nhận local changes
+    - Conflict resolution với timestamp (last-write-wins)
+    - Batch sync cho hiệu năng
+    - _Yêu cầu: 10.1, 10.2, 10.4, 10.5_
+  - [ ] 21.2 Tạo SyncController
+    - POST /api/sync/pull
+    - POST /api/sync/push
+    - GET /api/sync/status
+    - _Yêu cầu: 10.1, 10.2_
+  - [ ] 21.3 Implement encryption cho sync data
+    - Mã hóa data trong transit với HTTPS
+    - _Yêu cầu: 10.6_
+  - [ ]\* 21.4 Viết tests cho conflict resolution
+    - Test last-write-wins với concurrent updates
+    - Test batch sync performance
+    - _Yêu cầu: 10.5_
+
+- [ ] 22. Implement sao lưu và khôi phục (Backup)
+  - [ ] 22.1 Tạo BackupService
+    - Export toàn bộ data của user ra JSON
+    - Mã hóa backup file
+    - Upload lên cloud storage
+    - Restore từ backup file
+    - Giữ tối đa 30 backups gần nhất
+    - _Yêu cầu: 18.1, 18.2, 18.3, 18.4, 18.6, 18.7_
+  - [ ] 22.2 Tạo BackupController
+    - POST /api/backup/create
+    - GET /api/backup/list
+    - POST /api/backup/restore
+    - _Yêu cầu: 18.1, 18.4_
+  - [ ] 22.3 Implement scheduled auto backup
+    - Daily backup job nếu user bật auto backup
+    - _Yêu cầu: 18.2_
+  - [ ]\* 22.4 Viết tests cho backup và restore
+    - Test export và import data integrity
+    - Test encryption
+    - _Yêu cầu: 18.4, 18.6_
+
+- [ ] 23. Checkpoint - Kiểm tra backend hoàn chỉnh
+  - Đảm bảo tất cả API endpoints hoạt động, test với Postman hoặc curl, hỏi người dùng nếu có lỗi.
+
+- [ ] 24. Implement Flutter app - Setup và authentication
+  - [ ] 24.1 Tạo cấu trúc thư mục Flutter theo clean architecture
+    - Tạo folders: core, data, domain, presentation
+    - Setup dependency injection với get_it
+    - Setup routing với go_router
+    - _Yêu cầu: 20.1_
+  - [ ] 24.2 Implement local storage với SQLite
+    - Tạo database schema tương tự backend
+    - Implement DAO classes
+    - _Yêu cầu: 10.3_
+  - [ ] 24.3 Implement network layer với Dio
+    - Setup Dio client với base URL
+    - Implement JWT interceptor
+    - Implement retry logic
+    - _Yêu cầu: 15.3_
+  - [ ] 24.4 Implement authentication screens
+    - Login screen với email và password
+    - Register screen
+    - Forgot password screen
+    - Biometric authentication với local_auth package
+    - _Yêu cầu: 15.1, 15.5_
+  - [ ] 24.5 Implement AuthBloc và AuthRepository
+    - Login, register, logout logic
+    - Store JWT token trong secure storage
+    - Auto-login với saved token
+    - _Yêu cầu: 15.3, 15.4_
+  - [ ]\* 24.6 Viết widget tests cho auth screens
+    - Test login form validation
+    - Test navigation flows
+    - _Yêu cầu: 15.1_
+
+- [ ] 25. Implement Flutter app - Quản lý nguồn tiền và danh mục
+  - [ ] 25.1 Implement AccountRepository và AccountBloc
+    - Fetch accounts từ API
+    - Create, update, delete accounts
+    - Sync với local database
+    - _Yêu cầu: 2.1, 2.4, 2.5_
+  - [ ] 25.2 Tạo account management screens
+    - Account list screen với tổng số dư
+    - Add/edit account screen với form fields khác nhau theo type
+    - Savings account form: interest_rate, expected_withdrawal_date
+    - Credit card form: credit_limit, current_debt, payment_due_date
+    - Account detail screen hiển thị thông tin đặc thù theo type
+    - Hiển thị expected_interest cho savings account
+    - Hiển thị available_credit và days_until_due cho credit card
+    - _Yêu cầu: 2.1, 2.4, 2.7, 2.8, 2.10, 2.11_
+  - [ ] 25.3 Implement account statistics screen
+    - Screen hiển thị thống kê chi tiết cho từng nguồn tiền
+    - Period selector (ngày, tuần, tháng, năm)
+    - Biểu đồ thu chi theo thời gian
+    - Tổng thu, tổng chi, số dư ròng
+    - Phân tích chi tiêu theo category
+    - _Yêu cầu: 2.15, 2.16, 2.17_
+  - [ ] 25.4 Implement credit card alerts
+    - Hiển thị badge cảnh báo trên credit card khi gần đến hạn thanh toán
+    - Screen thanh toán dư nợ với form nhập số tiền
+    - Validation số tiền thanh toán không vượt quá current_debt
+    - _Yêu cầu: 2.12, 2.13, 2.14_
+  - [ ] 25.5 Implement CategoryRepository và CategoryBloc
+    - Fetch categories từ API
+    - Create, update, delete custom categories
+    - Reorder categories
+    - _Yêu cầu: 16.1, 16.2, 16.5_
+  - [ ] 25.6 Tạo category management screens
+    - Category list screen
+    - Add/edit category screen với icon picker
+    - _Yêu cầu: 16.2, 16.3_
+
+- [ ] 26. Implement Flutter app - Quản lý giao dịch
+  - [ ] 26.1 Implement TransactionRepository và TransactionBloc
+    - Fetch transactions với pagination
+    - Create, update, delete transactions
+    - Offline-first: lưu local trước, sync sau
+    - _Yêu cầu: 1.1, 1.3, 1.4, 10.3_
+  - [ ] 26.2 Tạo transaction list screen
+    - Hiển thị transactions theo thời gian giảm dần
+    - Pull-to-refresh
+    - Lazy loading khi scroll
+    - _Yêu cầu: 1.3, 20.3_
+  - [ ] 26.3 Tạo add/edit transaction screen
+    - Form nhập amount, category, account, date, note
+    - Image picker cho attach receipt
+    - Auto-classification suggestion
+    - _Yêu cầu: 1.1, 1.6, 7.4_
+  - [ ] 26.4 Implement search và filter
+    - Search bar trong transaction list
+    - Filter bottom sheet với multiple criteria
+    - Save filter presets
+    - _Yêu cầu: 1.7, 17.1, 17.2, 17.3_
+  - [ ]\* 26.5 Viết widget tests cho transaction screens
+    - Test form validation
+    - Test filter logic
+    - _Yêu cầu: 1.1, 17.2_
+
+- [ ] 27. Implement Flutter app - Thống kê và báo cáo
+  - [ ] 27.1 Implement StatisticsRepository và StatisticsBloc
+    - Fetch statistics từ API
+    - Cache locally
+    - _Yêu cầu: 3.3_
+  - [ ] 27.2 Tạo statistics screen với charts
+    - Overview card: tổng thu, tổng chi, số dư ròng
+    - Pie chart cho chi tiêu theo category
+    - Line chart cho xu hướng theo thời gian
+    - Period selector (ngày, tuần, tháng, năm)
+    - _Yêu cầu: 3.1, 3.2, 3.4, 3.5_
+  - [ ] 27.3 Tạo comparison screen
+    - So sánh chi tiêu giữa các kỳ
+    - Bar chart cho comparison
+    - Insights về thay đổi đáng kể
+    - _Yêu cầu: 13.1, 13.2, 13.4, 13.6_
+  - [ ] 27.4 Implement report generation
+    - Report settings screen
+    - Generate và download PDF/Excel
+    - Share report
+    - _Yêu cầu: 9.1, 9.4, 9.6_
+
+- [ ] 28. Implement Flutter app - Budget, Debt, Reminder
+  - [ ] 28.1 Implement BudgetRepository, BudgetBloc và screens
+    - Budget list với progress bars
+    - Add/edit budget screen
+    - Budget detail với spending breakdown
+    - _Yêu cầu: 4.1, 4.4, 4.6_
+  - [ ] 28.2 Implement DebtRepository, DebtBloc và screens
+    - Debt list phân biệt payable và receivable
+    - Add/edit debt screen
+    - Payment screen
+    - _Yêu cầu: 5.1, 5.2, 5.3, 5.5_
+  - [ ] 28.3 Implement ReminderRepository, ReminderBloc và screens
+    - Reminder list với upcoming reminders
+    - Add/edit reminder screen với frequency picker
+    - Complete reminder action
+    - _Yêu cầu: 6.1, 6.3, 6.5, 6.6_
+
+- [ ] 29. Implement Flutter app - Savings Goals và Assets
+  - [ ] 29.1 Implement SavingsGoalRepository, SavingsGoalBloc và screens
+    - Savings goal list với progress indicators
+    - Add/edit goal screen với image picker
+    - Contribute/withdraw screens
+    - _Yêu cầu: 12.1, 12.2, 12.4, 12.7_
+  - [ ] 29.2 Implement AssetRepository, AssetBloc và screens
+    - Asset list với total value
+    - Add/edit asset screen
+    - Net worth screen với breakdown chart
+    - _Yêu cầu: 14.1, 14.3, 14.4, 14.5_
+
+- [ ] 30. Implement Flutter app - Groups
+  - [ ] 30.1 Implement GroupRepository và GroupBloc
+    - Fetch groups
+    - Create group và generate invite code
+    - Join group với invite code
+    - Leave group
+    - _Yêu cầu: 8.1, 8.2, 8.8_
+  - [ ] 30.2 Tạo group screens
+    - Group list screen
+    - Create group screen
+    - Group detail screen với member list và balances
+    - Group transaction list
+    - Settle payment screen
+    - _Yêu cầu: 8.1, 8.3, 8.5, 8.6_
+  - [ ]\* 30.3 Viết tests cho group balance calculations
+    - Test split logic
+    - Test settle calculations
+    - _Yêu cầu: 8.4, 8.6_
+
+- [ ] 31. Implement Flutter app - OCR và advanced features
+  - [ ] 31.1 Implement OCR scanning
+    - Camera screen để chụp receipt
+    - Upload ảnh đến OCR API
+    - Review extracted data screen
+    - Create transaction từ OCR data
+    - _Yêu cầu: 11.1, 11.3, 11.5_
+  - [ ] 31.2 Implement sync service
+    - Background sync khi có network
+    - Conflict resolution
+    - Sync status indicator
+    - _Yêu cầu: 10.2, 10.4, 10.5_
+  - [ ] 31.3 Implement backup và restore
+    - Backup settings screen
+    - Manual backup button
+    - Restore from backup với confirmation
+    - _Yêu cầu: 18.1, 18.4, 18.5_
+
+- [ ] 32. Implement Flutter app - Settings và customization
+  - [ ] 32.1 Tạo settings screen
+    - Language selector (Tiếng Việt, English)
+    - Currency selector
+    - Theme selector (light, dark, auto)
+    - Week start day selector
+    - Date format selector
+    - Notification preferences
+    - _Yêu cầu: 19.1, 19.2, 19.3, 19.4, 19.5, 19.6_
+  - [ ] 32.2 Implement localization
+    - Setup intl package
+    - Create translation files
+    - Apply translations throughout app
+    - _Yêu cầu: 19.1_
+  - [ ] 32.3 Implement theme switching
+    - Light và dark theme definitions
+    - Apply theme dynamically
+    - Persist theme preference
+    - _Yêu cầu: 19.3_
+
+- [ ] 33. Implement push notifications trong Flutter
+  - [ ] 33.1 Setup Firebase Cloud Messaging
+    - Configure Firebase project
+    - Add FCM dependencies
+    - Request notification permissions
+    - _Yêu cầu: 4.2, 6.2_
+  - [ ] 33.2 Handle notification events
+    - Foreground notifications
+    - Background notifications
+    - Notification tap actions
+    - _Yêu cầu: 4.2, 5.4, 6.2, 8.7_
+  - [ ] 33.3 Implement notification preferences
+    - Toggle notifications per event type
+    - _Yêu cầu: 19.6_
+
+- [ ] 34. Checkpoint - Kiểm tra Flutter app hoàn chỉnh
+  - Đảm bảo tất cả screens hoạt động, test trên emulator và thiết bị thật, hỏi người dùng nếu có bug.
+
+- [ ] 35. Tối ưu hiệu năng
+  - [ ] 35.1 Tối ưu backend performance
+    - Review và optimize database queries
+    - Add missing indexes
+    - Tune cache TTL
+    - Load testing với 100+ concurrent requests
+    - _Yêu cầu: 20.4, 20.5, 20.6_
+  - [ ] 35.2 Tối ưu Flutter app performance
+    - Optimize widget rebuilds
+    - Implement image caching
+    - Reduce app startup time
+    - Test với 10,000+ transactions
+    - _Yêu cầu: 20.1, 20.2, 20.3, 20.7_
+  - [ ]\* 35.3 Viết performance tests
+    - Backend load tests
+    - Flutter integration tests
+    - _Yêu cầu: 20.1, 20.2, 20.4_
+
+- [ ] 36. Security hardening
+  - [ ] 36.1 Review và strengthen security
+    - Audit JWT implementation
+    - Review password hashing
+    - Test rate limiting
+    - Implement certificate pinning trong Flutter
+    - Review data encryption
+    - _Yêu cầu: 15.2, 15.3, 15.6, 15.8, 10.6, 18.6_
+  - [ ]\* 36.2 Viết security tests
+    - Test authentication bypass attempts
+    - Test SQL injection protection
+    - Test XSS protection
+    - _Yêu cầu: 15.2, 15.6_
+
+- [ ] 37. Testing và bug fixes
+  - [ ]\* 37.1 Viết end-to-end tests
+    - Test complete user flows
+    - Test offline mode và sync
+    - Test multi-device scenarios
+    - _Yêu cầu: 10.3, 10.4_
+  - [ ] 37.2 Bug fixing và polish
+    - Fix bugs phát hiện trong testing
+    - Improve error messages
+    - Add loading states
+    - Improve UX transitions
+
+- [ ] 38. Documentation và deployment preparation
+  - [ ] 38.1 Viết API documentation
+    - Document tất cả endpoints với Swagger/OpenAPI
+    - Add request/response examples
+  - [ ] 38.2 Viết user documentation
+    - User guide cho các tính năng chính
+    - FAQ
+  - [ ] 38.3 Prepare deployment
+    - Setup production database
+    - Configure environment variables
+    - Setup CI/CD pipeline
+    - Prepare app store listings
+
+- [ ] 39. Final checkpoint
+  - Đảm bảo toàn bộ hệ thống hoạt động ổn định, tất cả tests pass, sẵn sàng deploy.
+
+## Ghi Chú
+
+- Tasks đánh dấu `*` là optional và có thể bỏ qua để triển khai nhanh hơn
+- Mỗi task tham chiếu đến các yêu cầu cụ thể để đảm bảo traceability
+- Các checkpoint giúp xác nhận tiến độ và phát hiện vấn đề sớm
+- Ưu tiên implement backend trước, sau đó Flutter app
+- Offline-first approach: Flutter app lưu local trước, sync sau
+- Security và performance được tích hợp xuyên suốt quá trình phát triển
+- Task 5 đã được mở rộng để hỗ trợ đầy đủ tính năng nguồn tiền nâng cao:
+  - Tài khoản tiết kiệm với tính toán lãi suất tự động
+  - Thẻ tín dụng với quản lý dư nợ và cảnh báo thanh toán
+  - Thống kê chi tiết theo từng nguồn tiền
+  - API endpoints mới cho các tính năng nâng cao
+- Property-based tests được thêm vào để đảm bảo tính đúng đắn của các tính năng mới

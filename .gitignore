@@ -1,0 +1,60 @@
+# Java / Spring Boot
+*.class
+*.jar
+*.war
+*.ear
+*.log
+target/
+build/
+.gradle/
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+logs/
+
+# Spring Boot
+application-local.yml
+application-local.properties
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.g.dart
+*.freezed.dart
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Secrets
+secrets/
+*.pem
+*.key
