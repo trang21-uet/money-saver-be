@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "name": "Sync Frontend Integration Docs",
+  "description": "Automatically copies frontend-integration.md to the Flutter project's .kiro folder whenever it's edited, keeping API documentation in sync between backend and frontend",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      ".kiro/steering/frontend-integration.md"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "copy .kiro\\steering\\frontend-integration.md E:\\Code\\flutter\\banana\\.kiro\\steering\\backend-integration.md"
+  }
+}
