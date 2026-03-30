@@ -1,0 +1,27 @@
+{
+  "enabled": true,
+  "name": "Sync Spec BE → FE",
+  "description": "Khi file spec ở BE thay đổi, tự động copy sang FE",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      ".kiro/specs/shared-architecture/*.md",
+      ".kiro/specs/auth/*.md",
+      ".kiro/specs/transactions/*.md",
+      ".kiro/specs/accounts/*.md",
+      ".kiro/specs/statistics/*.md",
+      ".kiro/specs/budgets/*.md",
+      ".kiro/specs/debts/*.md",
+      ".kiro/specs/groups/*.md",
+      ".kiro/specs/savings-goals/*.md",
+      ".kiro/specs/ocr-classification/*.md",
+      ".kiro/specs/reports-sync-backup/*.md",
+      ".kiro/specs/settings/*.md"
+    ]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "for spec in shared-architecture auth transactions accounts statistics budgets debts groups savings-goals ocr-classification reports-sync-backup settings; do cp -f \"d:/Code/money-saver-be/.kiro/specs/$spec/\"*.md \"d:/Code/money-saver-fe/.kiro/specs/$spec/\" 2>/dev/null; done"
+  }
+}

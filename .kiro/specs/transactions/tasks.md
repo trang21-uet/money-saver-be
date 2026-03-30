@@ -1,0 +1,42 @@
+# Tasks - Quản Lý Giao Dịch
+
+- [ ] 1. Implement quản lý danh mục (Backend)
+  - [ ] 1.1 Tạo CategoryRepository và CategoryService
+    - Logic lấy default + custom categories, xóa với reassignment
+    - _Yêu cầu: 16.1, 16.2, 16.3, 16.4_
+  - [ ] 1.2 Tạo CategoryController
+    - GET/POST/PUT/DELETE /api/categories, PUT /api/categories/reorder
+    - _Yêu cầu: 16.2, 16.3, 16.5_
+
+- [ ] 2. Implement quản lý giao dịch (Backend)
+  - [ ] 2.1 Tạo TransactionRepository và TransactionService
+    - CRUD với soft delete, tự động cập nhật account balance, transaction rollback
+    - _Yêu cầu: 1.1, 1.2, 1.4, 1.5, 2.3_
+  - [ ] 2.2 Implement search và filter logic
+    - Filter theo date range, category, account, type; full-text search trong note; pagination
+    - _Yêu cầu: 1.7, 17.1, 17.2, 17.4_
+  - [ ] 2.3 Tạo TransactionController
+    - GET/POST/PUT/DELETE /api/transactions, GET /api/transactions/search, POST /api/transactions/bulk
+    - _Yêu cầu: 1.1, 1.3, 1.4, 1.5, 17.1_
+  - [ ]\* 2.4 Viết integration tests cho transactions
+    - Test tạo transaction và verify account balance update, soft delete, search/filter
+    - _Yêu cầu: 1.2, 1.5, 2.3_
+
+- [ ] 3. Implement quản lý giao dịch (Flutter)
+  - [ ] 3.1 Implement CategoryBloc và CategoryRepository
+    - _Yêu cầu: 16.1, 16.2, 16.5_
+  - [ ] 3.2 Tạo category management screens
+    - _Yêu cầu: 16.2, 16.3_
+  - [ ] 3.3 Implement TransactionBloc và TransactionRepository (offline-first)
+    - _Yêu cầu: 1.1, 1.3, 1.4_
+  - [ ] 3.4 Tạo transaction list screen
+    - Hiển thị theo thời gian giảm dần, lazy loading, pull-to-refresh
+    - _Yêu cầu: 1.3, 20.3_
+  - [ ] 3.5 Tạo add/edit transaction screen
+    - Form nhập amount, category, account, date, note, image picker
+    - _Yêu cầu: 1.1, 1.6_
+  - [ ] 3.6 Implement search và filter
+    - Search bar, filter bottom sheet với multiple criteria, save filter presets
+    - _Yêu cầu: 1.7, 17.1, 17.2, 17.3_
+  - [ ]\* 3.7 Viết widget tests cho transaction screens
+    - _Yêu cầu: 1.1, 17.2_

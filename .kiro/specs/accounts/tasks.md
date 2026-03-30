@@ -1,0 +1,48 @@
+# Tasks - Quản Lý Nguồn Tiền
+
+- [ ] 1. Implement AccountService (Backend)
+  - [ ] 1.1 Tạo AccountRepository và AccountService cơ bản
+    - CRUD operations, pessimistic locking cho concurrent balance updates
+    - _Yêu cầu: 2.1, 2.3, 2.6_
+  - [ ] 1.2 Implement logic savings account
+    - Validation: interest_rate (0-100%), expected_withdrawal_date (tương lai)
+    - calculateExpectedInterest theo công thức trong design
+    - Scheduled job lúc 1:00 AM cập nhật expected_interest vào Redis
+    - _Yêu cầu: 2.7, 2.8, 2.9_
+  - [ ] 1.3 Implement logic credit card
+    - Validation: credit_limit (dương), current_debt (không âm), payment_due_date
+    - getAvailableCredit, processExpenseTransaction, payDebt
+    - Kiểm tra không vượt credit_limit khi chi tiêu
+    - _Yêu cầu: 2.10, 2.11, 2.14_
+  - [ ] 1.4 Implement scheduled job credit card alerts
+    - Chạy lúc 9:00 AM, cảnh báo trước 3 ngày và đúng ngày đến hạn
+    - _Yêu cầu: 2.12, 2.13_
+  - [ ] 1.5 Implement thống kê theo nguồn tiền
+    - getAccountStatistics: tổng thu/chi/ròng, biểu đồ theo thời gian, phân tích theo category
+    - _Yêu cầu: 2.15, 2.16, 2.17_
+  - [ ] 1.6 Tạo AccountController với tất cả REST endpoints
+    - _Yêu cầu: 2.1, 2.4, 2.8, 2.11, 2.14, 2.15, 2.16_
+  - [ ]\* 1.7 Viết unit tests cho AccountService
+    - Test calculateExpectedInterest, getAvailableCredit, processExpenseTransaction, payDebt, getAccountStatistics
+    - _Yêu cầu: 2.1, 2.3, 2.6, 2.8, 2.11, 2.14, 2.16_
+  - [ ]\* 1.8 Viết property-based tests (jqwik)
+    - P1: Tính lãi suất savings account
+    - P2: Available credit credit card
+    - P3: Cập nhật debt khi chi tiêu
+    - P4: Giới hạn credit limit
+    - P5: Thanh toán debt
+    - P7/P8: Thống kê tổng thu/chi/ròng
+    - _Yêu cầu: 2.8, 2.11, 2.14, 2.16_
+
+- [ ] 2. Implement Account screens (Flutter)
+  - [ ] 2.1 Implement AccountBloc và AccountRepository
+    - _Yêu cầu: 2.1, 2.4, 2.5_
+  - [ ] 2.2 Tạo account list và add/edit screens
+    - Form fields khác nhau theo type (savings, credit card)
+    - _Yêu cầu: 2.1, 2.4, 2.7, 2.10_
+  - [ ] 2.3 Tạo account statistics screen
+    - Period selector, biểu đồ thu chi, tổng thu/chi/ròng
+    - _Yêu cầu: 2.15, 2.16, 2.17_
+  - [ ] 2.4 Implement credit card alerts UI
+    - Badge cảnh báo, screen thanh toán dư nợ
+    - _Yêu cầu: 2.12, 2.13, 2.14_

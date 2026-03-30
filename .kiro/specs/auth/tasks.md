@@ -1,0 +1,33 @@
+# Tasks - Xác Thực và Bảo Mật
+
+- [ ] 1. Implement JWT authentication (Backend)
+  - [ ] 1.1 Tạo JwtTokenProvider và JwtAuthenticationFilter
+    - _Yêu cầu: 15.3, 15.4_
+  - [ ] 1.2 Implement AuthController và AuthService
+    - POST /api/auth/register với bcrypt password hashing
+    - POST /api/auth/login với JWT token response
+    - POST /api/auth/refresh
+    - POST /api/auth/forgot-password và reset-password
+    - _Yêu cầu: 15.1, 15.2, 15.7_
+  - [ ] 1.3 Implement rate limiting cho authentication
+    - Giới hạn 5 lần đăng nhập sai trong 15 phút (Redis)
+    - _Yêu cầu: 15.6_
+  - [ ]\* 1.4 Viết unit tests cho authentication
+    - Test JWT generation/validation, login đúng/sai, rate limiting
+    - _Yêu cầu: 15.1, 15.2, 15.6_
+
+- [ ] 2. Implement authentication screens (Flutter)
+  - [ ] 2.1 Tạo cấu trúc thư mục Flutter theo clean architecture
+    - Setup dependency injection với get_it, routing với go_router
+    - _Yêu cầu: (infrastructure)_
+  - [ ] 2.2 Implement network layer với Dio
+    - Setup Dio client, JWT interceptor, retry logic
+    - _Yêu cầu: 15.3_
+  - [ ] 2.3 Implement AuthBloc và AuthRepository
+    - Login, register, logout, auto-login với saved token
+    - _Yêu cầu: 15.3, 15.4_
+  - [ ] 2.4 Tạo Login, Register, Forgot Password screens
+    - Biometric authentication với local_auth package
+    - _Yêu cầu: 15.1, 15.5_
+  - [ ]\* 2.5 Viết widget tests cho auth screens
+    - _Yêu cầu: 15.1_
