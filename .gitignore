@@ -6,6 +6,7 @@
 *.log
 target/
 build/
+bin/
 .gradle/
 .idea/
 *.iml
